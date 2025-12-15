@@ -1,11 +1,11 @@
 // Service Worker for Chi-Square Test Calculator PWA
-const CACHE_NAME = 'chi-square-calc-v1.1';
+const CACHE_NAME = 'chi-square-calc-v1.2';
 const urlsToCache = [
   './',
   './index.html',
   './CHIlogo.png',
   './chiPHONEE.png',
-  './chiLAPPY.png',
+  './chiLAPPYY.png',  // ← TWO Y's here!
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
@@ -52,7 +52,7 @@ self.addEventListener('activate', event => {
 
 // Fetch event - serve from cache, fall back to network
 self.addEventListener('fetch', event => {
-  // Skip cross-origin requests
+  // Skip cross-origin requests except CDNs
   if (!event.request.url.startsWith(self.location.origin) && 
       !event.request.url.includes('cdnjs.cloudflare.com') &&
       !event.request.url.includes('cdn.jsdelivr.net')) {
@@ -93,12 +93,12 @@ self.addEventListener('fetch', event => {
           })
           .catch(error => {
             console.log('Fetch failed:', error);
-            // If both cache and network fail, show offline page
+            // If both cache and network fail
             if (event.request.headers.get('accept').includes('text/html')) {
               return caches.match('./index.html');
             }
             
-            // For images, return a placeholder
+            // For images, return app icon as fallback
             if (event.request.destination === 'image') {
               return caches.match('./CHIlogo.png');
             }
@@ -107,11 +107,10 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Handle background sync (for future offline functionality)
+// Handle background sync
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-data') {
     console.log('Background sync triggered');
-    // You can implement offline data sync here
   }
 });
 
@@ -119,40 +118,26 @@ self.addEventListener('sync', event => {
 self.addEventListener('push', event => {
   if (!event.data) return;
 
-  const data = event.data.json();
+  const data = event.data.text();
   const options = {
-    body: data.body || 'Chi-Square Calculator Update',
+    body: data || 'Chi-Square Calculator Update',
     icon: './CHIlogo.png',
     badge: './CHIlogo.png',
     vibrate: [100, 50, 100],
     data: {
-      url: data.url || './'
-    },
-    actions: [
-      {
-        action: 'open',
-        title: 'Open App'
-      },
-      {
-        action: 'close',
-        title: 'Close'
-      }
-    ]
+      url: './'
+    }
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Chi-Square Calculator', options)
+    self.registration.showNotification('Chi-Square Calculator', options)
   );
 });
 
 // Handle notification click
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-
-  if (event.action === 'close') {
-    return;
-  }
-
+  
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(windowClients => {
@@ -164,33 +149,11 @@ self.addEventListener('notificationclick', event => {
         }
         // Open new window if not already open
         if (clients.openWindow) {
-          return clients.openWindow(event.notification.data.url || './');
+          return clients.openWindow('./');
         }
       })
   );
 });
-
-// Handle periodic updates
-self.addEventListener('periodicsync', event => {
-  if (event.tag === 'update-cache') {
-    event.waitUntil(updateCache());
-  }
-});
-
-// Function to update cache
-async function updateCache() {
-  const cache = await caches.open(CACHE_NAME);
-  for (const url of urlsToCache) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        await cache.put(url, response);
-      }
-    } catch (error) {
-      console.log(`Failed to update cache for ${url}:`, error);
-    }
-  }
-}
 
 // Listen for message events from the main thread
 self.addEventListener('message', event => {
